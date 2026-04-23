@@ -25,8 +25,10 @@ from framework.llm.litellm import (
     LiteLLMProvider,
     _build_system_message,
     _compute_retry_delay,
+    _cost_from_tokens,
     _ensure_ollama_chat_prefix,
     _extract_cache_tokens,
+    _extract_cost,
     _is_ollama_model,
     _model_supports_cache_control,
     _summarize_request_for_log,
@@ -1512,3 +1514,124 @@ class TestStreamingChunksFallbackPreservesCacheFields:
 
         assert cached == 5601
         assert creation == 0
+
+
+class TestExtractCost:
+    """`_extract_cost` pulls USD cost from three sources in order:
+    usage.cost (OpenRouter native / include_cost_in_streaming_usage) →
+    response._hidden_params['response_cost'] (LiteLLM logging) →
+    litellm.completion_cost() (pricing-table fallback)."""
+
+    def test_none_response_returns_zero(self):
+        assert _extract_cost(None, "gpt-4o-mini") == 0.0
+
+    def test_openrouter_usage_cost_is_preferred(self):
+        """OpenRouter returns authoritative per-call cost on usage.cost when
+        the caller opts in (usage.include=true). That beats LiteLLM's
+        pricing-table estimate because it reflects promo pricing and BYOK markup."""
+        response = MagicMock()
+        response.usage = MagicMock(cost=0.00123)
+        response._hidden_params = {"response_cost": 99.99}  # should be ignored
+        assert _extract_cost(response, "openrouter/anthropic/claude-opus-4.5") == 0.00123
+
+    def test_hidden_params_response_cost_used_when_no_usage_cost(self):
+        """LiteLLM's logging layer attaches response_cost after most
+        completions — this is how OpenAI/Anthropic responses get costed
+        without going back to the pricing table."""
+        response = MagicMock()
+        response.usage = MagicMock(spec=[])  # no .cost attribute
+        response._hidden_params = {"response_cost": 0.0042}
+        assert _extract_cost(response, "gpt-4o-mini") == 0.0042
+
+    def test_falls_back_to_completion_cost_when_nothing_pre_populated(self):
+        """For providers where LiteLLM didn't pre-populate cost, call
+        litellm.completion_cost() against the pricing table. Mocked here
+        because we don't want tests depending on the exact price of
+        claude-sonnet-4.5 in LiteLLM's model map."""
+        response = MagicMock()
+        response.usage = MagicMock(spec=[])
+        response._hidden_params = {}
+        with patch("litellm.completion_cost", return_value=0.00789):
+            assert _extract_cost(response, "anthropic/claude-sonnet-4.5") == 0.00789
+
+    def test_completion_cost_exception_returns_zero(self):
+        """Unpriced models (e.g. new OpenRouter routes not yet in LiteLLM's
+        catalog) must not crash the hot path."""
+        response = MagicMock()
+        response.usage = MagicMock(spec=[])
+        response._hidden_params = {}
+        with patch("litellm.completion_cost", side_effect=Exception("no pricing")):
+            assert _extract_cost(response, "openrouter/mystery/model") == 0.0
+
+    def test_zero_cost_falls_through_to_next_source(self):
+        """usage.cost == 0 should NOT short-circuit; fall through to
+        _hidden_params / completion_cost so we don't cement a false zero."""
+        response = MagicMock()
+        response.usage = MagicMock(cost=0.0)
+        response._hidden_params = {"response_cost": 0.0055}
+        assert _extract_cost(response, "gpt-4o-mini") == 0.0055
+
+
+class TestCostFromTokens:
+    """`_cost_from_tokens` is the streaming-path cost helper: stream wrappers
+    don't expose the full ModelResponse shape that completion_cost() expects,
+    so we go through cost_per_token() with the already-extracted totals."""
+
+    def test_zero_tokens_returns_zero_without_calling_litellm(self):
+        with patch("litellm.cost_per_token") as mock:
+            assert _cost_from_tokens("claude-opus-4.5", 0, 0) == 0.0
+            mock.assert_not_called()
+
+    def test_empty_model_returns_zero(self):
+        assert _cost_from_tokens("", 1000, 500) == 0.0
+
+    def test_computes_from_tokens(self):
+        with patch("litellm.cost_per_token", return_value=(0.001, 0.002)) as mock:
+            cost = _cost_from_tokens(
+                "anthropic/claude-opus-4.5",
+                input_tokens=1000,
+                output_tokens=500,
+                cached_tokens=200,
+                cache_creation_tokens=100,
+            )
+        assert cost == pytest.approx(0.003)
+        # Verify the cache-aware kwargs are threaded through — Anthropic
+        # needs these to apply the 1.25x write / 0.1x read multipliers.
+        call_kwargs = mock.call_args.kwargs
+        assert call_kwargs["prompt_tokens"] == 1000
+        assert call_kwargs["completion_tokens"] == 500
+        assert call_kwargs["cache_read_input_tokens"] == 200
+        assert call_kwargs["cache_creation_input_tokens"] == 100
+
+    def test_exception_returns_zero(self):
+        with patch("litellm.cost_per_token", side_effect=Exception("unpriced")):
+            assert _cost_from_tokens("mystery/model", 1000, 500) == 0.0
+
+    def test_negative_or_none_components_coerce_to_zero(self):
+        """LiteLLM returns (None, None) for unknown models in some versions;
+        treat as 0 rather than crashing on None+None."""
+        with patch("litellm.cost_per_token", return_value=(None, None)):
+            assert _cost_from_tokens("some/model", 1, 1) == 0.0
+
+
+class TestLLMResponseAndFinishEventHaveCostUsd:
+    """Regression: both LLMResponse and FinishEvent must carry cost_usd so
+    the agent loop → event bus → frontend pipeline doesn't lose cost."""
+
+    def test_llm_response_defaults_cost_to_zero(self):
+        from framework.llm.provider import LLMResponse
+
+        r = LLMResponse(content="", model="m")
+        assert r.cost_usd == 0.0
+
+    def test_finish_event_defaults_cost_to_zero(self):
+        from framework.llm.stream_events import FinishEvent
+
+        e = FinishEvent()
+        assert e.cost_usd == 0.0
+
+    def test_finish_event_accepts_cost(self):
+        from framework.llm.stream_events import FinishEvent
+
+        e = FinishEvent(cost_usd=0.0123)
+        assert e.cost_usd == 0.0123

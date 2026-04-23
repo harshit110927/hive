@@ -360,6 +360,82 @@ FAILED_REQUESTS_DIR = Path.home() / ".hive" / "failed_requests"
 MAX_FAILED_REQUEST_DUMPS = 50
 
 
+def _extract_cost(response: Any, model: str) -> float:
+    """Pull the USD cost for a non-streaming completion response.
+
+    Sources checked, in priority order:
+      1. ``usage.cost`` — populated when OpenRouter returns native cost via
+         ``usage: {include: true}`` or when ``litellm.include_cost_in_streaming_usage``
+         is on.
+      2. ``response._hidden_params["response_cost"]`` — set by LiteLLM's
+         logging layer after most successful completions.
+      3. ``litellm.completion_cost(...)`` — computes from the model pricing
+         table; works across Anthropic, OpenAI, and OpenRouter as long as the
+         model is in LiteLLM's catalog.
+
+    Returns 0.0 for unpriced models or unexpected response shapes — cost is a
+    display concern, never let it break the hot path. For streaming paths
+    where the aggregate response isn't a full ``ModelResponse``, use
+    :func:`_cost_from_tokens` with the already-extracted token counts.
+    """
+    if response is None:
+        return 0.0
+    usage = getattr(response, "usage", None)
+    usage_cost = getattr(usage, "cost", None) if usage is not None else None
+    if isinstance(usage_cost, (int, float)) and usage_cost > 0:
+        return float(usage_cost)
+
+    hidden = getattr(response, "_hidden_params", None)
+    if isinstance(hidden, dict):
+        hp_cost = hidden.get("response_cost")
+        if isinstance(hp_cost, (int, float)) and hp_cost > 0:
+            return float(hp_cost)
+
+    try:
+        import litellm as _litellm
+
+        computed = _litellm.completion_cost(completion_response=response, model=model)
+        if isinstance(computed, (int, float)) and computed > 0:
+            return float(computed)
+    except Exception as exc:
+        logger.debug("[cost] completion_cost failed for %s: %s", model, exc)
+    return 0.0
+
+
+def _cost_from_tokens(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int = 0,
+    cache_creation_tokens: int = 0,
+) -> float:
+    """Compute USD cost from already-normalized token counts.
+
+    Used on streaming paths where the aggregate ``response`` is the stream
+    wrapper (not a full ``ModelResponse``) and ``litellm.completion_cost`` on
+    it either no-ops or raises. Calls ``litellm.cost_per_token`` directly
+    with the cache-aware inputs so Anthropic's 5-min-write / cache-read
+    multipliers are applied correctly.
+    """
+    if not model or (input_tokens == 0 and output_tokens == 0):
+        return 0.0
+    try:
+        import litellm as _litellm
+
+        prompt_cost, completion_cost = _litellm.cost_per_token(
+            model=model,
+            prompt_tokens=input_tokens,
+            completion_tokens=output_tokens,
+            cache_read_input_tokens=cached_tokens,
+            cache_creation_input_tokens=cache_creation_tokens,
+        )
+        total = (prompt_cost or 0.0) + (completion_cost or 0.0)
+        return float(total) if total > 0 else 0.0
+    except Exception as exc:
+        logger.debug("[cost] cost_per_token failed for %s: %s", model, exc)
+        return 0.0
+
+
 def _extract_cache_tokens(usage: Any) -> tuple[int, int]:
     """Pull (cache_read, cache_creation) from a LiteLLM usage object.
 
@@ -1115,6 +1191,7 @@ class LiteLLMProvider(LLMProvider):
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
         cached_tokens, cache_creation_tokens = _extract_cache_tokens(usage)
+        cost_usd = _extract_cost(response, self.model)
 
         return LLMResponse(
             content=content,
@@ -1123,6 +1200,7 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=output_tokens,
             cached_tokens=cached_tokens,
             cache_creation_tokens=cache_creation_tokens,
+            cost_usd=cost_usd,
             stop_reason=response.choices[0].finish_reason or "",
             raw_response=response,
         )
@@ -1338,6 +1416,7 @@ class LiteLLMProvider(LLMProvider):
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
         cached_tokens, cache_creation_tokens = _extract_cache_tokens(usage)
+        cost_usd = _extract_cost(response, self.model)
 
         return LLMResponse(
             content=content,
@@ -1346,6 +1425,7 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=output_tokens,
             cached_tokens=cached_tokens,
             cache_creation_tokens=cache_creation_tokens,
+            cost_usd=cost_usd,
             stop_reason=response.choices[0].finish_reason or "",
             raw_response=response,
         )
@@ -1821,6 +1901,7 @@ class LiteLLMProvider(LLMProvider):
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
         cached_tokens, cache_creation_tokens = _extract_cache_tokens(usage)
+        cost_usd = _extract_cost(response, self.model)
         stop_reason = "tool_calls" if tool_calls else (response.choices[0].finish_reason or "stop")
 
         return LLMResponse(
@@ -1830,6 +1911,7 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=output_tokens,
             cached_tokens=cached_tokens,
             cache_creation_tokens=cache_creation_tokens,
+            cost_usd=cost_usd,
             stop_reason=stop_reason,
             raw_response={
                 "compat_mode": "openrouter_tool_emulation",
@@ -1891,6 +1973,7 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=response.output_tokens,
             cached_tokens=response.cached_tokens,
             cache_creation_tokens=response.cache_creation_tokens,
+            cost_usd=response.cost_usd,
             model=response.model,
         )
 
@@ -1960,6 +2043,7 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=response.output_tokens,
             cached_tokens=response.cached_tokens,
             cache_creation_tokens=response.cache_creation_tokens,
+            cost_usd=response.cost_usd,
             model=response.model,
         )
 
@@ -2286,6 +2370,13 @@ class LiteLLMProvider(LLMProvider):
                             choice.finish_reason,
                             self.model,
                         )
+                        cost_usd = _cost_from_tokens(
+                            self.model,
+                            input_tokens,
+                            output_tokens,
+                            cached_tokens,
+                            cache_creation_tokens,
+                        )
                         tail_events.append(
                             FinishEvent(
                                 stop_reason=choice.finish_reason,
@@ -2293,6 +2384,7 @@ class LiteLLMProvider(LLMProvider):
                                 output_tokens=output_tokens,
                                 cached_tokens=cached_tokens,
                                 cache_creation_tokens=cache_creation_tokens,
+                                cost_usd=cost_usd,
                                 model=self.model,
                             )
                         )
@@ -2335,6 +2427,13 @@ class LiteLLMProvider(LLMProvider):
                                 cache_creation_tokens,
                                 self.model,
                             )
+                            cost_usd = _cost_from_tokens(
+                                self.model,
+                                input_tokens,
+                                output_tokens,
+                                cached_tokens,
+                                cache_creation_tokens,
+                            )
                             # Patch the FinishEvent already queued with 0 tokens
                             for _i, _ev in enumerate(tail_events):
                                 if isinstance(_ev, FinishEvent) and _ev.input_tokens == 0:
@@ -2344,6 +2443,7 @@ class LiteLLMProvider(LLMProvider):
                                         output_tokens=output_tokens,
                                         cached_tokens=cached_tokens,
                                         cache_creation_tokens=cache_creation_tokens,
+                                        cost_usd=cost_usd,
                                         model=_ev.model,
                                     )
                                     break

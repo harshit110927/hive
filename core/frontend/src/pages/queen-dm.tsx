@@ -73,11 +73,14 @@ export default function QueenDM() {
   const [awaitingInput, setAwaitingInput] = useState(false);
   // `cached` and `cacheCreated` are subsets of `input` (providers count both
   // inside prompt_tokens already) — display them, never add them to a total.
+  // `costUsd` is the session-total USD cost when the provider supplies one
+  // (Anthropic, OpenAI, OpenRouter); 0 means unreported, not free.
   const [tokenUsage, setTokenUsage] = useState({
     input: 0,
     output: 0,
     cached: 0,
     cacheCreated: 0,
+    costUsd: 0,
   });
   const [historySessions, setHistorySessions] = useState<HistorySession[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -125,7 +128,7 @@ export default function QueenDM() {
     setPendingQuestions(null);
     setAwaitingInput(false);
     setQueenPhase("independent");
-    setTokenUsage({ input: 0, output: 0, cached: 0, cacheCreated: 0 });
+    setTokenUsage({ input: 0, output: 0, cached: 0, cacheCreated: 0, costUsd: 0 });
     setInitialDraft(null);
     setColonySpawned(false);
     setSpawnedColonyName(null);
@@ -587,11 +590,13 @@ export default function QueenDM() {
             // separately for display, do NOT roll into input/total.
             const cached = (event.data.cached_tokens as number) || 0;
             const cacheCreated = (event.data.cache_creation_tokens as number) || 0;
+            const costUsd = (event.data.cost_usd as number) || 0;
             setTokenUsage((prev) => ({
               input: prev.input + inp,
               output: prev.output + out,
               cached: prev.cached + cached,
               cacheCreated: prev.cacheCreated + cacheCreated,
+              costUsd: prev.costUsd + costUsd,
             }));
           }
           // Flush one queued message per LLM turn boundary. This is the

@@ -15,6 +15,10 @@ class LLMResponse:
     ``cached_tokens`` and ``cache_creation_tokens`` are subsets of
     ``input_tokens`` (providers report them inside ``prompt_tokens``).
     Surface them for visibility; do not add to a total.
+
+    ``cost_usd`` is the per-call USD cost when the provider / pricing table
+    can produce one (Anthropic, OpenAI, OpenRouter are supported). 0.0 when
+    unknown or unpriced — treat as "unreported", not "free".
     """
 
     content: str
@@ -23,6 +27,7 @@ class LLMResponse:
     output_tokens: int = 0
     cached_tokens: int = 0
     cache_creation_tokens: int = 0
+    cost_usd: float = 0.0
     stop_reason: str = ""
     raw_response: Any = None
 
@@ -189,6 +194,7 @@ class LLMProvider(ABC):
             output_tokens=response.output_tokens,
             cached_tokens=response.cached_tokens,
             cache_creation_tokens=response.cache_creation_tokens,
+            cost_usd=response.cost_usd,
             model=response.model,
         )
 

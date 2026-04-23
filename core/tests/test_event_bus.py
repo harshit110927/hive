@@ -814,6 +814,7 @@ class TestConveniencePublishers:
             output_tokens=50,
             cached_tokens=30,
             cache_creation_tokens=10,
+            cost_usd=0.0042,
             execution_id="exec_1",
             iteration=3,
         )
@@ -828,6 +829,7 @@ class TestConveniencePublishers:
         # display, NOT additive to input_tokens.
         assert received[0].data["cached_tokens"] == 30
         assert received[0].data["cache_creation_tokens"] == 10
+        assert received[0].data["cost_usd"] == 0.0042
         assert received[0].data["iteration"] == 3
 
     @pytest.mark.asyncio
