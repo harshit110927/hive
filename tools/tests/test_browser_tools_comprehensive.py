@@ -201,9 +201,7 @@ class TestComplexScriptExecution:
         """Test LinkedIn-style infinite feed scrolling with lazy loading."""
         scroll_calls = []
 
-        async def mock_scroll(
-            tab_id: int, direction: str, amount: int = 500, selector: str | None = None
-        ) -> dict:
+        async def mock_scroll(tab_id: int, direction: str, amount: int = 500, selector: str | None = None) -> dict:
             scroll_calls.append((tab_id, direction, amount))
             return {"ok": True}
 

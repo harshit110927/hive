@@ -904,9 +904,7 @@ def register_interaction_tools(mcp: FastMCP) -> None:
             return result
 
         try:
-            scroll_result = await bridge.scroll(
-                target_tab, direction=direction, amount=amount, selector=selector
-            )
+            scroll_result = await bridge.scroll(target_tab, direction=direction, amount=amount, selector=selector)
             log_tool_call(
                 "browser_scroll",
                 params,
