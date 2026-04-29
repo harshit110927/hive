@@ -371,7 +371,6 @@ async def create_queen(
         _queen_role_independent,
         _queen_role_reviewing,
         _queen_role_working,
-        _queen_style,
         _queen_tools_incubating,
         _queen_tools_independent,
         _queen_tools_reviewing,
@@ -646,7 +645,6 @@ async def create_queen(
         (
             _queen_character_core
             + _queen_role_independent
-            + _queen_style
             + _queen_tools_independent
             + _queen_behavior_always
             + _queen_behavior_independent
@@ -657,21 +655,19 @@ async def create_queen(
         (
             _queen_character_core
             + _queen_role_incubating
-            + _queen_style
             + _queen_tools_incubating
             + _queen_behavior_always
         ),
         _has_vision,
     )
     phase_state.prompt_working = finalize_queen_prompt(
-        (_queen_character_core + _queen_role_working + _queen_style + _queen_tools_working + _queen_behavior_always),
+        (_queen_character_core + _queen_role_working + _queen_tools_working + _queen_behavior_always),
         _has_vision,
     )
     phase_state.prompt_reviewing = finalize_queen_prompt(
         (
             _queen_character_core
             + _queen_role_reviewing
-            + _queen_style
             + _queen_tools_reviewing
             + _queen_behavior_always
         ),
