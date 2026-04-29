@@ -117,6 +117,12 @@ export default function QueenDM() {
   // client_input_requested so we don't flicker the typing bubble off while
   // the queen is about to resume on the flushed input.
   const queenAboutToResumeRef = useRef(false);
+  // Question bubble for an ask_user that's actively awaiting an answer. We
+  // stash it here instead of pushing it into messages so the user only sees
+  // ONE copy of the question (the popup widget) while answering. Committed
+  // to the transcript on client_input_received so the bubble lands right
+  // above the user's answer for scroll-back context.
+  const pendingAskUserBubbleRef = useRef<ChatMessage | null>(null);
   const [queenPhase, setQueenPhase] = useState<
     "independent" | "incubating" | "working" | "reviewing"
   >("independent");
@@ -541,19 +547,11 @@ export default function QueenDM() {
 
   const handleCreateNewSession = useCallback(() => {
     if (!queenId) return;
-    setCreatingNewSession(true);
-    const request = queensApi.createNewSession(
-      queenId,
-      undefined,
-      "independent",
-    );
-    request
-      .then((result) => {
-        setSearchParams({ session: result.session_id });
-      })
-      .catch(() => {
-        setCreatingNewSession(false);
-      });
+    // Bounce through the ?new=1 bootstrap path so the chat shell appears
+    // immediately with a typing indicator while createNewSession runs in
+    // the background. URL is replaced with ?session=<id> when it resolves.
+    // Avoids the 5s "nothing happens, then chat appears" dead window.
+    setSearchParams({ new: "1" });
   }, [queenId, setSearchParams]);
 
   useEffect(() => {
@@ -662,11 +660,14 @@ export default function QueenDM() {
             queenAboutToResumeRef.current = false;
             break;
           }
-          // Drop the queen's question into the transcript so it lives
-          // alongside the user's answer when scrolling back. Synthesized
-          // by replayEvent above; upsert by id so cold-replay doesn't
-          // duplicate it.
-          for (const m of emittedMessages) upsertMessage(m);
+          // Stash the question bubble (synthesized by replayEvent) instead
+          // of upserting now: while the popup widget is open the user only
+          // wants to see ONE copy of the question. We commit the bubble on
+          // client_input_received so it lands right above the user's
+          // answer in the transcript.
+          if (emittedMessages.length > 0) {
+            pendingAskUserBubbleRef.current = emittedMessages[0];
+          }
           setAwaitingInput(true);
           setIsTyping(false);
           setIsStreaming(false);
@@ -675,6 +676,14 @@ export default function QueenDM() {
         }
 
         case "client_input_received": {
+          // Commit the stashed ask_user bubble first so it appears above
+          // the user's reply in scroll-back. Its createdAt predates this
+          // event's, so the timestamp-ordered insert in upsertMessage
+          // places it correctly.
+          if (pendingAskUserBubbleRef.current) {
+            upsertMessage(pendingAskUserBubbleRef.current);
+            pendingAskUserBubbleRef.current = null;
+          }
           for (const msg of emittedMessages) {
             upsertMessage(msg, { reconcileOptimisticUser: true });
           }
