@@ -2,7 +2,6 @@
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
 
 
 def _load_preferred_model() -> str:

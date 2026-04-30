@@ -30,6 +30,7 @@ _ENV_TRUST_ALL = "HIVE_TRUST_PROJECT_SKILLS"
 # Env var for comma-separated own-remote glob patterns (e.g. "github.com/myorg/*").
 _ENV_OWN_REMOTES = "HIVE_OWN_REMOTES"
 
+
 def _trusted_repos_path() -> Path:
     from framework.config import HIVE_HOME
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from framework.skills.parser import ParsedSkill
 from framework.skills.skill_errors import SkillError, SkillErrorCode
 
+
 # Default install destination for user-scope skills + sentinel file for
 # the one-time security notice on first install (NFR-5). Computed via
 # helpers so HIVE_HOME (set by the desktop shell to a per-user dir)
@@ -34,6 +35,7 @@ def _install_notice_sentinel() -> Path:
     from framework.config import HIVE_HOME
 
     return HIVE_HOME / ".install_notice_shown"
+
 
 _INSTALL_NOTICE = """\
 ─────────────────────────────────────────────────────────────

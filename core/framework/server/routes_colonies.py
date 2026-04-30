@@ -57,6 +57,7 @@ _SESSION_SEGMENT_RE = re.compile(r"^[a-z0-9_]+$")
 # pushed wholesale anyway.
 _MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
+
 def _agents_dir() -> Path:
     """``COLONIES_DIR`` resolves to ``HIVE_HOME/colonies``; ``agents/`` is
     the sibling. Resolved per-call so tests that monkeypatch
@@ -129,9 +130,7 @@ def _normalise_member_name(name: str) -> str:
     return name
 
 
-def _safe_extract_tar(
-    tf: tarfile.TarFile, dest: Path, *, strip_prefix: str
-) -> tuple[int, str | None]:
+def _safe_extract_tar(tf: tarfile.TarFile, dest: Path, *, strip_prefix: str) -> tuple[int, str | None]:
     """Extract every member of ``tf`` whose name starts with ``strip_prefix/``
     into ``dest``, with the prefix stripped off.
 
@@ -159,7 +158,7 @@ def _safe_extract_tar(
             if not name.startswith(prefix_with_sep):
                 # Belongs to a different root in a multi-root tar; skip.
                 continue
-            rel = name[len(prefix_with_sep):]
+            rel = name[len(prefix_with_sep) :]
         else:
             rel = name
         if not rel:
@@ -299,9 +298,7 @@ async def _read_upload(
 ) -> tuple[bytes | None, str | None, dict[str, str], web.Response | None]:
     """Drain the multipart upload. Returns ``(bytes, filename, form, error)``."""
     if not request.content_type.startswith("multipart/"):
-        return None, None, {}, web.json_response(
-            {"error": "expected multipart/form-data"}, status=400
-        )
+        return None, None, {}, web.json_response({"error": "expected multipart/form-data"}, status=400)
     reader = await request.multipart()
     upload: bytes | None = None
     upload_filename: str | None = None
@@ -318,18 +315,21 @@ async def _read_upload(
                     break
                 buf.write(chunk)
                 if buf.tell() > _MAX_UPLOAD_BYTES:
-                    return None, None, {}, web.json_response(
-                        {"error": f"upload exceeds {_MAX_UPLOAD_BYTES} bytes"},
-                        status=413,
+                    return (
+                        None,
+                        None,
+                        {},
+                        web.json_response(
+                            {"error": f"upload exceeds {_MAX_UPLOAD_BYTES} bytes"},
+                            status=413,
+                        ),
                     )
             upload = buf.getvalue()
             upload_filename = part.filename or ""
         else:
             form[part.name or ""] = (await part.text()).strip()
     if upload is None:
-        return None, None, {}, web.json_response(
-            {"error": "missing 'file' part"}, status=400
-        )
+        return None, None, {}, web.json_response({"error": "missing 'file' part"}, status=400)
     return upload, upload_filename, form, None
 
 
@@ -346,18 +346,12 @@ async def handle_import_colony(request: web.Request) -> web.Response:
     try:
         tf = tarfile.open(fileobj=io.BytesIO(upload), mode="r:*")
     except tarfile.TarError as err:
-        return web.json_response(
-            {"error": f"invalid tar archive: {err}"}, status=400
-        )
+        return web.json_response({"error": f"invalid tar archive: {err}"}, status=400)
 
     try:
         if _has_multi_root_prefix(tf):
-            return await _import_multi_root(
-                tf, replace_existing, upload_filename, len(upload)
-            )
-        return await _import_legacy_single_root(
-            tf, name_override, replace_existing, upload_filename, len(upload)
-        )
+            return await _import_multi_root(tf, replace_existing, upload_filename, len(upload))
+        return await _import_legacy_single_root(tf, name_override, replace_existing, upload_filename, len(upload))
     finally:
         tf.close()
 
@@ -478,15 +472,11 @@ async def _import_multi_root(
     for kind in ("colonies", "agents_worker", "agents_queen"):
         for prefix, dest in plan[kind].items():
             target = Path(dest)
-            files_extracted, extract_err = _safe_extract_tar(
-                tf, target, strip_prefix=prefix
-            )
+            files_extracted, extract_err = _safe_extract_tar(tf, target, strip_prefix=prefix)
             if extract_err:
                 return _abort(extract_err)
             summary.setdefault(kind, {"files": 0})
-            summary[kind]["files"] = (
-                int(summary[kind].get("files", 0)) + files_extracted
-            )
+            summary[kind]["files"] = int(summary[kind].get("files", 0)) + files_extracted
             extracted_dests.append(target)
 
     total_files = sum(int(v.get("files", 0)) for v in summary.values())

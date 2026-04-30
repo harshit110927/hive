@@ -26,6 +26,7 @@ _DEFAULT_REGISTRY_URL = (
     "https://raw.githubusercontent.com/hive-skill-registry/hive-skill-registry/main/skill_index.json"
 )
 
+
 def _cache_dir() -> Path:
     from framework.config import HIVE_HOME
 
@@ -38,6 +39,8 @@ def _cache_index_path() -> Path:
 
 def _cache_metadata_path() -> Path:
     return _cache_dir() / "metadata.json"
+
+
 _CACHE_TTL_SECONDS = 3600  # 1 hour
 
 

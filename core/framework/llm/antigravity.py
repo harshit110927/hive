@@ -23,6 +23,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
+from framework.config import HIVE_HOME as _HIVE_HOME
 from framework.llm.provider import LLMProvider, LLMResponse, Tool
 from framework.llm.stream_events import (
     FinishEvent,
@@ -51,8 +52,6 @@ _DEFAULT_PROJECT_ID = "rising-fact-p41fc"
 _TOKEN_REFRESH_BUFFER_SECS = 60
 
 # Credentials file in $HIVE_HOME (native implementation)
-from framework.config import HIVE_HOME as _HIVE_HOME
-
 _ACCOUNTS_FILE = _HIVE_HOME / "antigravity-accounts.json"
 _IDE_STATE_DB_MAC = (
     Path.home() / "Library" / "Application Support" / "Antigravity" / "User" / "globalStorage" / "state.vscdb"

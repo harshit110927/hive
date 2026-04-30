@@ -15,6 +15,7 @@ from typing import IO, Any
 
 logger = logging.getLogger(__name__)
 
+
 def _llm_debug_dir() -> Path:
     """Resolve $HIVE_HOME/llm_logs lazily so the env override (set by the
     desktop) takes effect. A module-level constant would freeze whatever
@@ -22,6 +23,7 @@ def _llm_debug_dir() -> Path:
     from framework.config import HIVE_HOME
 
     return HIVE_HOME / "llm_logs"
+
 
 _log_file: IO[str] | None = None
 _log_ready = False  # lazy init guard

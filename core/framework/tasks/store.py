@@ -248,9 +248,7 @@ class TaskStore:
         rejected before any write. The doc model makes "atomic-or-none"
         free — we mutate one in-memory document and write it once.
         """
-        return await asyncio.to_thread(
-            self._create_tasks_batch_sync, task_list_id, specs
-        )
+        return await asyncio.to_thread(self._create_tasks_batch_sync, task_list_id, specs)
 
     async def create_task(
         self,
@@ -401,9 +399,7 @@ class TaskStore:
         doc_path = self._doc_path(task_list_id)
         if doc_path.exists():
             try:
-                return TaskListDocument.model_validate_json(
-                    doc_path.read_text(encoding="utf-8")
-                )
+                return TaskListDocument.model_validate_json(doc_path.read_text(encoding="utf-8"))
             except Exception:
                 logger.warning("Corrupt tasks.json at %s", doc_path, exc_info=True)
                 # Fall through — legacy fallback may rescue us.
@@ -414,9 +410,7 @@ class TaskStore:
                 # finished migrating, in which case we read the new doc.
                 if doc_path.exists():
                     try:
-                        return TaskListDocument.model_validate_json(
-                            doc_path.read_text(encoding="utf-8")
-                        )
+                        return TaskListDocument.model_validate_json(doc_path.read_text(encoding="utf-8"))
                     except Exception:
                         logger.warning(
                             "Corrupt tasks.json at %s (post-lock)",
@@ -438,9 +432,7 @@ class TaskStore:
         doc_path = self._doc_path(task_list_id)
         if doc_path.exists():
             try:
-                return TaskListDocument.model_validate_json(
-                    doc_path.read_text(encoding="utf-8")
-                )
+                return TaskListDocument.model_validate_json(doc_path.read_text(encoding="utf-8"))
             except Exception:
                 logger.warning("Corrupt tasks.json at %s", doc_path, exc_info=True)
         if self._has_legacy_artifacts(task_list_id):
@@ -464,11 +456,7 @@ class TaskStore:
         """Fold legacy artifacts into a TaskListDocument. Caller MUST hold lock."""
         meta = self._read_legacy_meta(task_list_id)
         if meta is None:
-            inferred_role = (
-                TaskListRole.TEMPLATE
-                if task_list_id.startswith("colony:")
-                else TaskListRole.SESSION
-            )
+            inferred_role = TaskListRole.TEMPLATE if task_list_id.startswith("colony:") else TaskListRole.SESSION
             meta = TaskListMeta(task_list_id=task_list_id, role=inferred_role)
 
         tasks: list[TaskRecord] = []
@@ -621,14 +609,8 @@ class TaskStore:
         with self._list_lock(task_list_id):
             doc = self._read_doc_unsafe(task_list_id)
             if doc is None:
-                inferred_role = (
-                    TaskListRole.TEMPLATE
-                    if task_list_id.startswith("colony:")
-                    else TaskListRole.SESSION
-                )
-                doc = TaskListDocument(
-                    meta=TaskListMeta(task_list_id=task_list_id, role=inferred_role)
-                )
+                inferred_role = TaskListRole.TEMPLATE if task_list_id.startswith("colony:") else TaskListRole.SESSION
+                doc = TaskListDocument(meta=TaskListMeta(task_list_id=task_list_id, role=inferred_role))
             new_id = self._next_id_for_doc(doc)
             now = time.time()
             record = TaskRecord(
@@ -664,14 +646,8 @@ class TaskStore:
         with self._list_lock(task_list_id):
             doc = self._read_doc_unsafe(task_list_id)
             if doc is None:
-                inferred_role = (
-                    TaskListRole.TEMPLATE
-                    if task_list_id.startswith("colony:")
-                    else TaskListRole.SESSION
-                )
-                doc = TaskListDocument(
-                    meta=TaskListMeta(task_list_id=task_list_id, role=inferred_role)
-                )
+                inferred_role = TaskListRole.TEMPLATE if task_list_id.startswith("colony:") else TaskListRole.SESSION
+                doc = TaskListDocument(meta=TaskListMeta(task_list_id=task_list_id, role=inferred_role))
 
             base_id = self._next_id_for_doc(doc)
             now = time.time()
@@ -726,14 +702,18 @@ class TaskStore:
             target = next((r for r in doc.tasks if r.id == task_id), None)
             if target is None:
                 return None, []
-            new, changed = self._update_task_in_doc(doc, target, subject=subject,
-                                                   description=description,
-                                                   active_form=active_form,
-                                                   owner=owner,
-                                                   status=status,
-                                                   add_blocks=add_blocks,
-                                                   add_blocked_by=add_blocked_by,
-                                                   metadata_patch=metadata_patch)
+            new, changed = self._update_task_in_doc(
+                doc,
+                target,
+                subject=subject,
+                description=description,
+                active_form=active_form,
+                owner=owner,
+                status=status,
+                add_blocks=add_blocks,
+                add_blocked_by=add_blocked_by,
+                metadata_patch=metadata_patch,
+            )
             if changed:
                 self._write_doc_unsafe(task_list_id, doc)
             return new, changed

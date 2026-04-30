@@ -652,12 +652,7 @@ async def create_queen(
         _has_vision,
     )
     phase_state.prompt_incubating = finalize_queen_prompt(
-        (
-            _queen_character_core
-            + _queen_role_incubating
-            + _queen_tools_incubating
-            + _queen_behavior_always
-        ),
+        (_queen_character_core + _queen_role_incubating + _queen_tools_incubating + _queen_behavior_always),
         _has_vision,
     )
     phase_state.prompt_working = finalize_queen_prompt(
@@ -665,12 +660,7 @@ async def create_queen(
         _has_vision,
     )
     phase_state.prompt_reviewing = finalize_queen_prompt(
-        (
-            _queen_character_core
-            + _queen_role_reviewing
-            + _queen_tools_reviewing
-            + _queen_behavior_always
-        ),
+        (_queen_character_core + _queen_role_reviewing + _queen_tools_reviewing + _queen_behavior_always),
         _has_vision,
     )
 

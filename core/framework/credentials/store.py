@@ -745,7 +745,6 @@ class CredentialStore:
             token = store.get_key("hubspot", "access_token")
         """
         import os
-        from pathlib import Path
 
         from .storage import EncryptedFileStorage
 

@@ -25,9 +25,7 @@ def test_is_client_facing() -> None:
     assert session_summary.is_client_facing({"role": "user", "content": "hi"})
     assert session_summary.is_client_facing({"role": "assistant", "content": "ok"})
     assert not session_summary.is_client_facing({"role": "tool", "content": "x"})
-    assert not session_summary.is_client_facing(
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "1"}]}
-    )
+    assert not session_summary.is_client_facing({"role": "assistant", "content": "", "tool_calls": [{"id": "1"}]})
     assert not session_summary.is_client_facing({"is_transition_marker": True})
 
 

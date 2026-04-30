@@ -105,9 +105,7 @@ async def test_happy_path_imports_colony(colonies_dir: Path) -> None:
 async def test_name_override(colonies_dir: Path) -> None:
     archive = _build_tar({"x_daily/": None, "x_daily/file.txt": b"hi"})
     async with await _client(_app()) as c:
-        resp = await c.post(
-            "/api/colonies/import", data=_form(archive, name="other_name")
-        )
+        resp = await c.post("/api/colonies/import", data=_form(archive, name="other_name"))
         assert resp.status == 201
         body = await resp.json()
     assert body["name"] == "other_name"
@@ -202,7 +200,9 @@ async def test_rejects_invalid_colony_name(colonies_dir: Path) -> None:
 @pytest.mark.asyncio
 async def test_rejects_non_multipart(colonies_dir: Path) -> None:
     async with await _client(_app()) as c:
-        resp = await c.post("/api/colonies/import", data=b"not multipart", headers={"Content-Type": "application/octet-stream"})
+        resp = await c.post(
+            "/api/colonies/import", data=b"not multipart", headers={"Content-Type": "application/octet-stream"}
+        )
         assert resp.status == 400
 
 
@@ -266,7 +266,9 @@ async def test_multi_root_unpacks_three_subtrees(colonies_dir: Path) -> None:
     assert (colonies_dir / "x_daily" / "data" / "progress.db").exists()
     # Worker conversations under HIVE_HOME/agents/<colony>/worker/
     hive_home = colonies_dir.parent
-    assert (hive_home / "agents" / "x_daily" / "worker" / "conversations" / "0001.json").read_bytes() == b'{"role":"user"}'
+    assert (
+        hive_home / "agents" / "x_daily" / "worker" / "conversations" / "0001.json"
+    ).read_bytes() == b'{"role":"user"}'
     # Queen forked session under HIVE_HOME/agents/queens/<queen>/sessions/<sid>/
     assert (hive_home / "agents" / "queens" / "queen_alpha" / "sessions" / "session_x" / "queen.json").exists()
     # Summary in response

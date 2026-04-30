@@ -377,6 +377,7 @@ OPENROUTER_TOOL_COMPAT_MODEL_CACHE: dict[str, float] = {}
 # from rate-limit retries — 3 retries is sufficient for connection failures.
 STREAM_TRANSIENT_MAX_RETRIES = 3
 
+
 # Directory for dumping failed requests. Resolved lazily so HIVE_HOME
 # overrides (set by the desktop shell) take effect even if this module
 # is imported before framework.config picks up the override.

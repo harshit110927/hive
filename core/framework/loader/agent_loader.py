@@ -9,7 +9,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 
-from framework.config import get_hive_config, get_preferred_model
+from framework.config import HIVE_HOME as _HIVE_HOME, get_hive_config, get_preferred_model
 from framework.credentials.validation import (
     ensure_credential_key_env as _ensure_credential_key_env,
 )
@@ -558,8 +558,6 @@ ANTIGRAVITY_IDE_STATE_DB = (
 # Linux fallback for the IDE state DB
 ANTIGRAVITY_IDE_STATE_DB_LINUX = Path.home() / ".config" / "Antigravity" / "User" / "globalStorage" / "state.vscdb"
 # Antigravity credentials stored by native OAuth implementation
-from framework.config import HIVE_HOME as _HIVE_HOME
-
 ANTIGRAVITY_AUTH_FILE = _HIVE_HOME / "antigravity-accounts.json"
 
 ANTIGRAVITY_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"

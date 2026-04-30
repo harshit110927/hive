@@ -125,8 +125,7 @@ def _create_batch_schema() -> dict[str, Any]:
                 "type": "array",
                 "minItems": 1,
                 "description": (
-                    "Array of task specs. Each becomes one task with a "
-                    "sequential id. Atomic — all created or none."
+                    "Array of task specs. Each becomes one task with a sequential id. Atomic — all created or none."
                 ),
                 "items": {
                     "type": "object",
@@ -138,9 +137,7 @@ def _create_batch_schema() -> dict[str, Any]:
                         "description": {"type": "string"},
                         "active_form": {
                             "type": "string",
-                            "description": (
-                                "Present-continuous label shown while in_progress."
-                            ),
+                            "description": ("Present-continuous label shown while in_progress."),
                         },
                         "metadata": {"type": "object"},
                     },
@@ -317,10 +314,7 @@ def _make_create_batch_executor(store: TaskStore):
                     await store.delete_task(list_id, r.id)
                 return {
                     "success": False,
-                    "error": (
-                        f"Hook blocked task #{rec.id} ({rec.subject!r}); "
-                        f"entire batch rolled back: {exc}"
-                    ),
+                    "error": (f"Hook blocked task #{rec.id} ({rec.subject!r}); entire batch rolled back: {exc}"),
                 }
 
         for rec in recs:
@@ -339,10 +333,7 @@ def _make_create_batch_executor(store: TaskStore):
             "success": True,
             "task_list_id": list_id,
             "task_ids": ids,
-            "message": (
-                f"Created {len(ids)} task(s): {range_label}. "
-                f"Mark #{ids[0]} in_progress before starting it."
-            ),
+            "message": (f"Created {len(ids)} task(s): {range_label}. Mark #{ids[0]} in_progress before starting it."),
             "tasks": [_serialize_task(r) for r in recs],
         }
 

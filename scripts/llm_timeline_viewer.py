@@ -68,9 +68,7 @@ def _is_test_session(execution_id: str, records: list[dict[str, Any]]) -> bool:
     if execution_id.startswith("<MagicMock"):
         return True
     models = {
-        str(r.get("token_counts", {}).get("model", ""))
-        for r in records
-        if isinstance(r.get("token_counts"), dict)
+        str(r.get("token_counts", {}).get("model", "")) for r in records if isinstance(r.get("token_counts"), dict)
     }
     models.discard("")
     if models and models <= {"mock"}:
@@ -80,9 +78,7 @@ def _is_test_session(execution_id: str, records: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _discover_session_summaries(
-    logs_dir: Path, limit_files: int, include_tests: bool
-) -> list[SessionSummary]:
+def _discover_session_summaries(logs_dir: Path, limit_files: int, include_tests: bool) -> list[SessionSummary]:
     if not logs_dir.exists():
         raise FileNotFoundError(f"log directory not found: {logs_dir}")
 
@@ -120,9 +116,7 @@ def _discover_session_summaries(
             continue
 
     if not include_tests:
-        by_session = {
-            eid: recs for eid, recs in by_session.items() if not _is_test_session(eid, recs)
-        }
+        by_session = {eid: recs for eid, recs in by_session.items() if not _is_test_session(eid, recs)}
 
     summaries: list[SessionSummary] = []
     for eid, recs in by_session.items():
@@ -141,8 +135,7 @@ def _discover_session_summaries(
                     {
                         str(r.get("token_counts", {}).get("model", ""))
                         for r in recs
-                        if isinstance(r.get("token_counts"), dict)
-                        and r.get("token_counts", {}).get("model")
+                        if isinstance(r.get("token_counts"), dict) and r.get("token_counts", {}).get("model")
                     }
                 ),
             )
@@ -152,9 +145,7 @@ def _discover_session_summaries(
     return summaries
 
 
-def _load_session_data(
-    logs_dir: Path, session_id: str, limit_files: int
-) -> list[dict[str, Any]] | None:
+def _load_session_data(logs_dir: Path, session_id: str, limit_files: int) -> list[dict[str, Any]] | None:
     if not logs_dir.exists():
         return None
 
